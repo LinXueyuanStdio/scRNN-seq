@@ -14,7 +14,6 @@ if not os.path.exists('./mlp_img'):
     os.mkdir('./mlp_img')
 if not os.path.exists('./filters'):
     os.mkdir('./filters')
-device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
 def to_img(x):
     x = x.view(x.size(0), 1, 100, 50)
@@ -52,23 +51,27 @@ class SimulatedDataset(Dataset):
     '''
     每一个 Item 是 (5000, ) 的向量
     '''
-    def __init__(self, csv_data_path):
-        self.csv_data_path = csv_data_path
-        self.csv_data = pd.read_csv(csv_data_path)
+    def __init__(self, simulated_csv_data_path, true_csv_data_path):
+        self.simulated_csv_data = pd.read_csv(simulated_csv_data_path)
+        self.true_csv_data_path = pd.read_csv(true_csv_data_path)
 
     def __len__(self):
-        return len(self.csv_data.columns) - 1
+        return len(self.simulated_csv_data.columns) - 1
 
     def __getitem__(self, index):
-        a_column_of_data = self.csv_data.iloc[:, index+1]
-        return np.asarray(a_column_of_data)
+        a_column_of_simulated_data = self.simulated_csv_data.iloc[:, index+1]
+        a_column_of_true_data = self.simulated_csv_data.iloc[:, index+1]
+        simulated_true_pack = (np.asarray(a_column_of_simulated_data), np.asarray(a_column_of_true_data))
+        return simulated_true_pack
 
 img_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Lambda(lambda tensor:min_max_normalization(tensor, 0, 1)),
     transforms.Lambda(lambda tensor:tensor_round(tensor))
 ])
-dataset = SimulatedDataset("./data/counts_simulated_dataset1_dropout0.05.csv")
+dataset = SimulatedDataset(simulated_csv_data_path = "./data/counts_simulated_dataset1_dropout0.05.csv"
+true_csv_data_path="./data/tr")
+# dataset = MNIST('./data', transform=img_transform, download=True)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
@@ -92,22 +95,20 @@ class AutoEncoder(nn.Module):
         return x
 
 
-model = AutoEncoder().to(device)
+model = AutoEncoder()
 criterion = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
 
 for epoch in range(num_epochs):
     for data in dataloader:
-        img = data
-        img = img.view(img.size(0), -1)
-        noisy_img = add_noise(img.float())
-        noisy_img = Variable(noisy_img).float().to(device)
-        img = Variable(img).float().to(device)
+        (noisy_data, true_data) = data
+        noisy_data = Variable(noisy_data).float()
+        true_data = Variable(true_data).float()
         # ===================forward=====================
         print(noisy_img.size())
-        output = model(noisy_img)
-        loss = criterion(output, img)
-        MSE_loss = nn.MSELoss()(output, img)
+        output = model(noisy_data)
+        loss = criterion(output, true_data)
+        MSE_loss = nn.MSELoss()(output, true_data)
         # ===================backward====================
         optimizer.zero_grad()
         loss.backward()
@@ -121,7 +122,7 @@ for epoch in range(num_epochs):
     if epoch % 10 == 0:
         x = to_img(img.cpu().data)
         x_hat = to_img(output.cpu().data)
-        x_noisy = to_img(noisy_img.cpu().data)
+        x_noisy = to_img(noisy_data.cpu().data)
         weights = to_img(model.encoder[0].weight.cpu().data)
         save_image(x, './mlp_img/x_{}.png'.format(epoch))
         save_image(x_hat, './mlp_img/x_hat_{}.png'.format(epoch))
