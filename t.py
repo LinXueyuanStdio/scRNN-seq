@@ -6,6 +6,7 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.utils import save_image
+from scipy.stats.stats import pearsonr
 
 import pandas as pd
 import numpy as np
@@ -22,7 +23,7 @@ def to_img(x):
 
 
 num_epochs = 20
-batch_size = 128
+batch_size = 1
 learning_rate = 1e-3
 
 
@@ -84,14 +85,14 @@ class AutoEncoder(nn.Module):
     def __init__(self):
         super(AutoEncoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(5000, 2560),
+            nn.Linear(5000, 256),
             nn.ReLU(True),
-            nn.Linear(2560, 64),
+            nn.Linear(256, 64),
             nn.ReLU(True))
         self.decoder = nn.Sequential(
-            nn.Linear(64, 2560),
+            nn.Linear(64, 256),
             nn.ReLU(True),
-            nn.Linear(2560, 5000),
+            nn.Linear(256, 5000),
             nn.Sigmoid())
 
     def forward(self, x):
@@ -114,16 +115,16 @@ for epoch in range(num_epochs):
         output = model(noisy_data)
         loss = criterion(output, true_data)
         MSE_loss = nn.MSELoss()(output, true_data)
+        np1 = output.detach().numpy().reshape(-1)
+        np2 = true_data.detach().numpy().reshape(-1)
+        PCC, p_value = pearsonr(np1, np2)
         # ===================backward====================
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
     # ===================log========================
-    print('epoch [{}/{}], loss:{:.4f}, MSE_loss:{:.4f}'.format(
-        epoch + 1,
-        num_epochs,
-        loss.data,
-        MSE_loss.data))
+    print('epoch [{}/{}], loss:{:.4f}, MSE_loss:{:.4f}, PCC:{:.4f}, p-value:{:.4f}'
+          .format(epoch + 1, num_epochs, loss.data, MSE_loss.data, PCC, p_value))
     if epoch % 10 == 0:
         x = to_img(true_data.cpu().data)
         x_hat = to_img(output.cpu().data)
