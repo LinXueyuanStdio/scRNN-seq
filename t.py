@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.utils import save_image
 from scipy.stats.stats import pearsonr
+import Progbar
 
 import pandas as pd
 import numpy as np
@@ -65,7 +66,7 @@ class SimulatedDataset(Dataset):
 
     def __getitem__(self, index):
         a_column_of_simulated_data = self.simulated_csv_data.iloc[:, index+1]
-        a_column_of_true_data = self.simulated_csv_data.iloc[:, index+1]
+        a_column_of_true_data = self.true_csv_data_path.iloc[:, index+1]
         simulated_true_pack = (np.asarray(a_column_of_simulated_data), np.asarray(a_column_of_true_data))
         return simulated_true_pack
 
@@ -105,8 +106,12 @@ model = AutoEncoder()
 criterion = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
 
+if os.path.exists('./sim_autoencoder.pth'):
+    model.load_state_dict(torch.load('./sim_autoencoder.pth'))
+
 for epoch in range(num_epochs):
-    for data in dataloader:
+    prog = Progbar(len(dataloader))
+    for i, data in enumerate(dataloader):
         (noisy_data, true_data) = data
         noisy_data = Variable(noisy_data).float()
         true_data = Variable(true_data).float()
@@ -122,6 +127,8 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        # =====================log=======================
+        prog.update(i + 1, [("loss", loss.item()), ("MSE_loss", MSE_loss.data), ("PCC", PCC), ("p-value", p_value)])
     # ===================log========================
     print('epoch [{}/{}], loss:{:.4f}, MSE_loss:{:.4f}, PCC:{:.4f}, p-value:{:.4f}'
           .format(epoch + 1, num_epochs, loss.data, MSE_loss.data, PCC, p_value))
