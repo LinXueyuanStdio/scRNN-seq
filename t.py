@@ -84,14 +84,14 @@ class AutoEncoder(nn.Module):
     def __init__(self):
         super(AutoEncoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(5000, 256),
+            nn.Linear(5000, 2560),
             nn.ReLU(True),
-            nn.Linear(256, 64),
+            nn.Linear(2560, 64),
             nn.ReLU(True))
         self.decoder = nn.Sequential(
-            nn.Linear(64, 256),
+            nn.Linear(64, 2560),
             nn.ReLU(True),
-            nn.Linear(256, 5000),
+            nn.Linear(2560, 5000),
             nn.Sigmoid())
 
     def forward(self, x):
