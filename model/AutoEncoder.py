@@ -20,7 +20,7 @@ def to_img(x):
     x = x.view(x.size(0), 1, 100, 50)
     return x
 
-num_epochs = 20
+num_epochs = 50
 batch_size = 128
 learning_rate = 1e-3
 
@@ -104,7 +104,7 @@ for epoch in range(num_epochs):
         noisy_img = Variable(noisy_img).float().to(device)
         img = Variable(img).float().to(device)
         # ===================forward=====================
-        print(noisy_img.size())
+        #print(noisy_img.size())
         output = model(noisy_img)
         loss = criterion(output, img)
         MSE_loss = nn.MSELoss()(output, img)
