@@ -15,9 +15,11 @@ if not os.path.exists('./mlp_img'):
 if not os.path.exists('./filters'):
     os.mkdir('./filters')
 
+
 def to_img(x):
     x = x.view(x.size(0), 1, 100, 50)
     return x
+
 
 num_epochs = 20
 batch_size = 128
@@ -47,10 +49,12 @@ def min_max_normalization(tensor, min_value, max_value):
 def tensor_round(tensor):
     return torch.round(tensor)
 
+
 class SimulatedDataset(Dataset):
     '''
     每一个 Item 是 (5000, ) 的向量
     '''
+
     def __init__(self, simulated_csv_data_path, true_csv_data_path):
         self.simulated_csv_data = pd.read_csv(simulated_csv_data_path)
         self.true_csv_data_path = pd.read_csv(true_csv_data_path)
@@ -64,13 +68,14 @@ class SimulatedDataset(Dataset):
         simulated_true_pack = (np.asarray(a_column_of_simulated_data), np.asarray(a_column_of_true_data))
         return simulated_true_pack
 
+
 img_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Lambda(lambda tensor:min_max_normalization(tensor, 0, 1)),
     transforms.Lambda(lambda tensor:tensor_round(tensor))
 ])
-dataset = SimulatedDataset(simulated_csv_data_path = "./data/counts_simulated_dataset1_dropout0.05.csv"
-true_csv_data_path="./data/tr")
+dataset = SimulatedDataset(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.05.csv",
+                           true_csv_data_path="./data/true_counts_simulated_dataset1_dropout0.05.csv")
 # dataset = MNIST('./data', transform=img_transform, download=True)
 dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -105,7 +110,7 @@ for epoch in range(num_epochs):
         noisy_data = Variable(noisy_data).float()
         true_data = Variable(true_data).float()
         # ===================forward=====================
-        print(noisy_img.size())
+        # print(true_data.size())
         output = model(noisy_data)
         loss = criterion(output, true_data)
         MSE_loss = nn.MSELoss()(output, true_data)
@@ -120,7 +125,7 @@ for epoch in range(num_epochs):
         loss.data,
         MSE_loss.data))
     if epoch % 10 == 0:
-        x = to_img(img.cpu().data)
+        x = to_img(true_data.cpu().data)
         x_hat = to_img(output.cpu().data)
         x_noisy = to_img(noisy_data.cpu().data)
         weights = to_img(model.encoder[0].weight.cpu().data)
@@ -130,3 +135,4 @@ for epoch in range(num_epochs):
         save_image(weights, './filters/epoch_{}.png'.format(epoch))
 
 torch.save(model.state_dict(), './sim_autoencoder.pth')
+
