@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.utils import save_image
 from scipy.stats.stats import pearsonr
-import Progbar
+from Progbar import Progbar
 
 import pandas as pd
 import numpy as np
@@ -16,7 +16,7 @@ if not os.path.exists('./mlp_img'):
     os.mkdir('./mlp_img')
 if not os.path.exists('./filters'):
     os.mkdir('./filters')
-
+device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
 def to_img(x):
     x = x.view(x.size(0), 1, 100, 50)
@@ -47,9 +47,14 @@ def min_max_normalization(tensor, min_value, max_value):
     tensor = tensor * (max_value - min_value) + min_value
     return tensor
 
-
 def tensor_round(tensor):
-    return torch.round(tensor)
+    return torch.round(tensor.float())
+
+img_transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Lambda(lambda tensor:min_max_normalization(tensor, 0, 1)),
+    transforms.Lambda(lambda tensor:tensor_round(tensor))
+])
 
 
 class SimulatedDataset(Dataset):
@@ -57,9 +62,10 @@ class SimulatedDataset(Dataset):
     每一个 Item 是 (5000, ) 的向量
     '''
 
-    def __init__(self, simulated_csv_data_path, true_csv_data_path):
+    def __init__(self, simulated_csv_data_path, true_csv_data_path, transform=None):
         self.simulated_csv_data = pd.read_csv(simulated_csv_data_path)
         self.true_csv_data_path = pd.read_csv(true_csv_data_path)
+        self.transform = transform
 
     def __len__(self):
         return len(self.simulated_csv_data.columns) - 1
@@ -67,19 +73,19 @@ class SimulatedDataset(Dataset):
     def __getitem__(self, index):
         a_column_of_simulated_data = self.simulated_csv_data.iloc[:, index+1]
         a_column_of_true_data = self.true_csv_data_path.iloc[:, index+1]
-        simulated_true_pack = (np.asarray(a_column_of_simulated_data), np.asarray(a_column_of_true_data))
+        a_column_of_simulated_data = np.asarray(a_column_of_simulated_data).reshape(1,-1)
+        a_column_of_true_data = np.asarray(a_column_of_true_data).reshape(1,-1)
+        if self.transform is not None:
+            a_column_of_simulated_data = self.transform(a_column_of_simulated_data)
+            a_column_of_true_data = self.transform(a_column_of_true_data)
+        simulated_true_pack = (a_column_of_simulated_data, a_column_of_true_data)
         return simulated_true_pack
 
-
-img_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Lambda(lambda tensor:min_max_normalization(tensor, 0, 1)),
-    transforms.Lambda(lambda tensor:tensor_round(tensor))
-])
 dataset = SimulatedDataset(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.05.csv",
-                           true_csv_data_path="./data/true_counts_simulated_dataset1_dropout0.05.csv")
+                           true_csv_data_path="./data/true_counts_simulated_dataset1_dropout0.05.csv",
+                           transform=img_transform)
 # dataset = MNIST('./data', transform=img_transform, download=True)
-dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=3)
 
 
 class AutoEncoder(nn.Module):
@@ -102,12 +108,12 @@ class AutoEncoder(nn.Module):
         return x
 
 
-model = AutoEncoder()
-criterion = nn.BCELoss()
+model = AutoEncoder().to(device)
+criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
 
-if os.path.exists('./sim_autoencoder.pth'):
-    model.load_state_dict(torch.load('./sim_autoencoder.pth'))
+#if os.path.exists('./sim_autoencoder.pth'):
+    #model.load_state_dict(torch.load('./sim_autoencoder.pth'))
 
 for epoch in range(num_epochs):
     prog = Progbar(len(dataloader))
