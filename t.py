@@ -52,8 +52,8 @@ def tensor_round(tensor):
 
 img_transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Lambda(lambda tensor:min_max_normalization(tensor, 0, 1)),
-    transforms.Lambda(lambda tensor:tensor_round(tensor))
+    transforms.Lambda(lambda tensor:min_max_normalization(tensor, 0, 1))
+   # transforms.Lambda(lambda tensor:tensor_round(tensor))
 ])
 
 
@@ -92,14 +92,14 @@ class AutoEncoder(nn.Module):
     def __init__(self):
         super(AutoEncoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(5000, 256),
+            nn.Linear(5000, 512),
             nn.ReLU(True),
-            nn.Linear(256, 64),
+            nn.Linear(512, 128),
             nn.ReLU(True))
         self.decoder = nn.Sequential(
-            nn.Linear(64, 256),
+            nn.Linear(128, 512),
             nn.ReLU(True),
-            nn.Linear(256, 5000),
+            nn.Linear(512, 5000),
             nn.Sigmoid())
 
     def forward(self, x):
@@ -109,7 +109,7 @@ class AutoEncoder(nn.Module):
 
 
 model = AutoEncoder().to(device)
-criterion = nn.MSELoss()
+criterion = nn.BCELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
 
 #if os.path.exists('./sim_autoencoder.pth'):
@@ -119,15 +119,15 @@ for epoch in range(num_epochs):
     prog = Progbar(len(dataloader))
     for i, data in enumerate(dataloader):
         (noisy_data, true_data) = data
-        noisy_data = Variable(noisy_data).float()
-        true_data = Variable(true_data).float()
+        noisy_data = Variable(noisy_data).float().to(device)
+        true_data = Variable(true_data).float().to(device)
         # ===================forward=====================
         # print(true_data.size())
         output = model(noisy_data)
         loss = criterion(output, true_data)
         MSE_loss = nn.MSELoss()(output, true_data)
-        np1 = output.detach().numpy().reshape(-1)
-        np2 = true_data.detach().numpy().reshape(-1)
+        np1 = output.cpu().detach().numpy().reshape(-1)
+        np2 = true_data.cpu().detach().numpy().reshape(-1)
         PCC, p_value = pearsonr(np1, np2)
         # ===================backward====================
         optimizer.zero_grad()
@@ -148,4 +148,4 @@ for epoch in range(num_epochs):
         save_image(x_noisy, './mlp_img/x_noisy_{}.png'.format(epoch))
         save_image(weights, './filters/epoch_{}.png'.format(epoch))
 
-torch.save(model.state_dict(), './sim_autoencoder.pth')
+torch.save(model.state_dict(), './512BCE_sim_autoencoder.pth')
