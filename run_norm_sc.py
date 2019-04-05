@@ -48,12 +48,14 @@ def reset_raw_from_norm(norm_x):
 
 
 def get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_path):
-    a = pd.read_csv(simulated_csv_data_path)
+    a = normalization(pd.read_csv(simulated_csv_data_path).iloc[:, 1:]) # norm
     for i in range(2000):
-        minmax = np.max(norm(a.iloc[:, i+1]))
-        data = minmax_0_to_1(output_data[i][0], reverse=True, minmax=minmax)
-        a.iloc[:, i+1] = norm(data, reverse=True)
+        minmax = np.max(a.iloc[:, i])
+        data = minmax_0_to_1(output_data[i][0], reverse=True, minmax=minmax) # 把结果反归一化成norm状态（需要用到norm的最大值）
+        a.iloc[:, i] = data # 用结果覆盖原来的
     b = pd.read_csv(true_csv_data_path)
+
+    # a,b 都是已norm状态
     return a, b
 
 
@@ -184,8 +186,8 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
 
         print("predict PCC:{:.4f} MSE:{:.8f}".format(pcc, mse))
 
-        filepath = "./data/"+prefix+"_predict_PCC_{:.4f}_MSE_{:.8f}_".format(pcc, mse)+simulated_csv_data_path[7:]
-        predict_df.to_csv(filepath, index=0)
+        # filepath = "./data/"+prefix+"_predict_PCC_{:.4f}_MSE_{:.8f}_".format(pcc, mse)+simulated_csv_data_path[7:]
+        # predict_df.to_csv(filepath, index=0)
         break  # 只有一个 batch, 一次全拿出来了，不会有第二个
 
 
