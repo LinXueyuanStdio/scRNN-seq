@@ -19,6 +19,7 @@ def to_img(x):
     x = x.view(x.size(0), 1, 100, 50)
     return x
 
+
 def norm(x, reverse=False):
     if reverse:
         y = np.power(10, x) - 1.01
@@ -27,18 +28,40 @@ def norm(x, reverse=False):
     else:
         return np.log10(x + 1.01)
 
+
+def minmax_0_to_1(x, reverse=False, minmax=1):
+    if reverse:
+        # x -> [0, 1]
+        return x * minmax
+        # minmax_x -> [0, 6]
+    else:
+        # norm_x -> [0, 6]
+        return x / minmax
+        # minmax_x -> [0, 1]
+
+
+def reset_raw_from_norm(norm_x):
+    return norm(
+        minmax_0_to_1(
+            minmax_0_to_1(norm_x, minmax=np.max(norm_x)), True, np.max(norm_x)), True)
+
+
 def get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_path):
     a = pd.read_csv(simulated_csv_data_path)
-    b = pd.read_csv(true_csv_data_path)
     for i in range(2000):
-        a.iloc[:, i+1] = norm(output_data[i][0], reverse=True)
+        minmax = np.max(norm(a.iloc[:, i+1]))
+        data = minmax_0_to_1(output_data[i][0], reverse=True, minmax=minmax)
+        a.iloc[:, i+1] = norm(data, reverse=True)
+    b = pd.read_csv(true_csv_data_path)
     return a, b
+
 
 def calculate_pcc(arr1, arr2):
     PCC, _ = pearsonr(
         np.asarray(arr1).reshape(2000*5000),
         np.asarray(arr2).reshape(2000*5000))
     return PCC
+
 
 num_epochs = 10
 batch_size = 50
@@ -96,6 +119,7 @@ class AutoEncoder(nn.Module):
         x = self.decoder(x)
         return x
 
+
 def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.05.csv",
             true_csv_data_path="./data/true_counts_simulated_dataset1_dropout0.05.csv",
             save_model_filename="./model_dropout0.05.pth", num_epochs=10):
@@ -115,11 +139,8 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
             prog = Progbar(len(dataloader))
             for i, data in enumerate(dataloader):
                 (noisy_data, true_data) = data
-                # print(noisy_data[0][0][:9])
-                # print(true_data[0][0][:9])
-                # print(norm(noisy_data[0][0][:9].numpy(), True))
-                # print(norm(true_data[0][0][:9].numpy(), True))
-                # return
+                noisy_data = minmax_0_to_1(noisy_data, False, torch.max(noisy_data))
+                true_data = minmax_0_to_1(true_data, False, torch.max(true_data))
                 noisy_data = Variable(noisy_data).float().to(device)
                 true_data = Variable(true_data).float().to(device)
                 # ===================forward=====================
@@ -143,6 +164,8 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
         (noisy_data, true_data) = data
         noisy_data = Variable(noisy_data).float().to(device)
         true_data = Variable(true_data).float().to(device)
+        noisy_data = minmax_0_to_1(noisy_data, False, torch.max(noisy_data))
+        true_data = minmax_0_to_1(true_data, False, torch.max(true_data))
         # ===================forward=====================
         output = model(noisy_data)
         loss = criterion(output, true_data)
@@ -156,7 +179,7 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
 
         filepath = "./data/"+prefix+"_predict_PCC_{:.4f}_MSE_{:.8f}_".format(pcc, mse)+simulated_csv_data_path[7:]
         predict_df.to_csv(filepath, index=0)
-        break # 只有一个 batch, 一次全拿出来了，不会有第二个
+        break  # 只有一个 batch, 一次全拿出来了，不会有第二个
 
 
 predict(

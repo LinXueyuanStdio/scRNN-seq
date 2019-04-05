@@ -187,20 +187,8 @@ class Decoder(nn.Module):
 class AutoEncoder(nn.Module):
     def __init__(self):
         super(AutoEncoder, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(5000, 512),
-            nn.ReLU(True),
-            nn.Linear(512, 128),
-            nn.ReLU(True),
-            nn.Linear(128, 64),
-            nn.ReLU(True))
-        self.decoder = nn.Sequential(
-            nn.Linear(64, 128),
-            nn.ReLU(True),
-            nn.Linear(128, 512),
-            nn.ReLU(True),
-            nn.Linear(512, 5000),
-            nn.Sigmoid())
+        self.encoder = Encoder()
+        self.decoder = Decoder()
 
     def forward(self, x):
         x = self.encoder(x)
@@ -213,18 +201,14 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
             save_model_filename="./model_dropout0.05.pth", num_epochs=20):
     dataset = SimulatedDataset(simulated_csv_data_path, true_csv_data_path)
     dataloader = DataLoader(dataset, batch_size=50, shuffle=True, num_workers=3)
-    encoder = Encoder().to(device)
-    decoder = Decoder().to(device)
-    parameters = list(encoder.parameters()) + list(decoder.parameters())
+    model = AutoEncoder().to(device)
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(parameters, lr=1e-3, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
     if os.path.exists(save_model_filename):
         loaded_model = torch.load(save_model_filename, "cpu")
-        encoder.load_state_dict(loaded_model)
-        decoder.load_state_dict(loaded_model)
+        model.load_state_dict(torch.load(save_model_filename, "cpu"))
     else:
-        encoder.train()
-        decoder.train()
+        model.train()
         for epoch in range(num_epochs):
             print('epoch [{}/{}]'.format(epoch + 1, num_epochs))
             prog = Progbar(len(dataloader))
@@ -233,8 +217,7 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
                 noisy_data = Variable(noisy_data).float().to(device)
                 true_data = Variable(true_data).float().to(device)
                 # ===================forward=====================
-                output = encoder(noisy_data)
-                output = decoder(output)
+                output = model(noisy_data)
                 loss = criterion(output, true_data)
                 MSE_loss = nn.MSELoss()(output, true_data)
                 np1 = output.cpu().detach().numpy().reshape(-1)
@@ -249,18 +232,16 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
                 global debug
                 debug=False
 
-        torch.save([encoder, decoder], save_model_filename)
+        torch.save(model.state_dict(), save_model_filename)
 
-    encoder.eval()
-    decoder.eval()
+    model.eval()
     dataloader2 = DataLoader(dataset, batch_size=2000, shuffle=True, num_workers=3)
     for data in dataloader2:
         (noisy_data, true_data) = data
         noisy_data = Variable(noisy_data).float().to(device)
         true_data = Variable(true_data).float().to(device)
         # ===================forward=====================
-        output = encoder(noisy_data)
-        output = decoder(output)
+        output = model(noisy_data)
         loss = criterion(output, true_data)
         mse = MSE_loss(output, true_data).data
         output_data = output.data.numpy()
