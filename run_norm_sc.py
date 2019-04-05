@@ -89,7 +89,7 @@ class SimulatedDataset(Dataset):
         self.transform = transform
 
     def __len__(self):
-        return len(self.simulated_csv_data.columns) - 1
+        return len(self.simulated_csv_data.columns)
 
     def __getitem__(self, index):
         a_column_of_simulated_data = self.simulated_csv_data.iloc[:, index]
