@@ -230,7 +230,7 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
                 # =====================log=======================
                 prog.update(i + 1, [("loss", loss.item()), ("MSE_loss", MSE_loss.data), ("PCC", PCC), ("p-value", p_value)])
                 global debug
-                debug=False
+                debug=False # 只打印一次
 
         torch.save(model.state_dict(), save_model_filename)
 
