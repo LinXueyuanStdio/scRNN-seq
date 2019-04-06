@@ -1,6 +1,7 @@
 from util.data_process import normalization, minmax_0_to_1
-import pandas as pd
 from scipy.stats.stats import pearsonr
+import pandas as pd
+import numpy as np
 
 
 def calculate_pcc(arr1, arr2):
