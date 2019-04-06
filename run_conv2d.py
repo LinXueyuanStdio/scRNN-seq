@@ -30,10 +30,11 @@ def norm(x, reverse=False):
 
 
 def get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_path):
-    a = pd.read_csv(simulated_csv_data_path)
-    b = pd.read_csv(true_csv_data_path)
+    a = pd.read_csv(simulated_csv_data_path).iloc[:, 1:]
+    b = pd.read_csv(true_csv_data_path).iloc[:, 1:]
     for i in range(2000):
-        a.iloc[:, i+1] = np.asarray(np.floor(output_data[i][0] * (np.max(a.iloc[:, i+1]))), dtype="int")
+        y = output_data[i][0] * (np.max(a.iloc[:, i])) # 根据最大值来反归一化
+        a.iloc[:, i] = np.around(y).astype(np.int32) # 四舍五入后取整
     return a, b
 
 
@@ -70,7 +71,7 @@ class SimulatedDataset(Dataset):
         a_column_of_simulated_data = np.asarray(a_column_of_simulated_data).reshape(1, 100, 50)
         a_column_of_true_data = np.asarray(a_column_of_true_data).reshape(1, 100, 50)
 
-        a_column_of_simulated_data = a_column_of_simulated_data / np.max(a_column_of_simulated_data)
+        a_column_of_simulated_data = a_column_of_simulated_data / np.max(a_column_of_simulated_data) # 根据最大值来归一化
         a_column_of_true_data = a_column_of_true_data / np.max(a_column_of_true_data)
 
 #         if self.transform is not None:
@@ -80,111 +81,127 @@ class SimulatedDataset(Dataset):
         return simulated_true_pack
 
 
-# Encoder
-# torch.nn.Conv2d(in_channels, out_channels, kernel_size,
-#                 stride=1, padding=0, dilation=1,
-#                 groups=1, bias=True)
-# batch x 1 x 28 x 28 -> batch x 512
-
 class Encoder(nn.Module):
+    """
+    Encoder:
+        torch.nn.Conv2d(in_channels, out_channels, kernel_size,
+                        stride=1, padding=0, dilation=1,
+                        groups=1, bias=True)
+        batch x 1 x 100 x 50 -> batch x 12800
+    """
+
     def __init__(self):
         super(Encoder, self).__init__()
         self.layer1 = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1),   # batch x 32 x 28 x 28
+            nn.Conv2d(1, 32, 3, padding=1),   # batch x 32 x 100 x 50
             nn.ReLU(),
             nn.BatchNorm2d(32),
-            nn.Conv2d(32, 32, 3, padding=1),   # batch x 32 x 28 x 28
+            nn.Conv2d(32, 32, 3, padding=1),   # batch x 32 x 100 x 50
             nn.ReLU(),
             nn.BatchNorm2d(32),
-            nn.Conv2d(32, 64, 3, padding=1),  # batch x 64 x 28 x 28
+            nn.Conv2d(32, 64, 3, padding=1),  # batch x 64 x 100 x 50
             nn.ReLU(),
             nn.BatchNorm2d(64),
-            nn.Conv2d(64, 64, 3, padding=1),  # batch x 64 x 28 x 28
+            nn.Conv2d(64, 64, 3, padding=1),  # batch x 64 x 100 x 50
             nn.ReLU(),
             nn.BatchNorm2d(64),
-            nn.MaxPool2d(5, 5)   # batch x 64 x 14 x 14
+            nn.MaxPool2d(5, 5)   # batch x 64 x 20 x 10
         )
         self.layer2 = nn.Sequential(
-            nn.Conv2d(64, 128, 3, padding=1),  # batch x 128 x 14 x 14
+            nn.Conv2d(64, 128, 3, padding=1),  # batch x 128 x 20 x 10
             nn.ReLU(),
             nn.BatchNorm2d(128),
-            nn.Conv2d(128, 128, 3, padding=1),  # batch x 128 x 14 x 14
+            nn.Conv2d(128, 128, 3, padding=1),  # batch x 128 x 20 x 10
             nn.ReLU(),
             nn.BatchNorm2d(128),
             nn.MaxPool2d(2, 2),
-            nn.Conv2d(128, 256, 3, padding=1),  # batch x 256 x 7 x 7
+            nn.Conv2d(128, 256, 3, padding=1),  # batch x 256 x 10 x 5
             nn.ReLU()
         )
 
     def forward(self, x):
         global debug
         if debug:
-            print(x.size())
+            print(x.size())  # [50, 1, 100, 50]
         out = self.layer1(x)
         if debug:
-            print(out.size())
+            print(out.size())  # [50, 64, 20, 10]
         out = self.layer2(out)
         if debug:
-            print(out.size())
+            print(out.size())  # [50, 256, 10, 5]
         out = out.view(batch_size, -1)
         if debug:
-            print(out.size())
+            print(out.size())  # [50, 12800]
         return out
 
 
-# Decoder
-# torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size,
-#                          stride=1, padding=0, output_padding=0,
-#                          groups=1, bias=True)
-# output_height = (height-1)*stride + kernel_size - 2*padding + output_padding
-# batch x 512 -> batch x 1 x 28 x 28
-
-
 class Decoder(nn.Module):
+    """
+    Decoder
+        torch.nn.ConvTranspose2d(in_channels, out_channels, kernel_size,
+                                stride=1, padding=0, output_padding=0,
+                                groups=1, bias=True)
+        output_height = (height-1)*stride + kernel_size - 2*padding + output_padding
+        batch x 12800 -> batch x 1 x 100 x 50
+    """
+
     def __init__(self):
         super(Decoder, self).__init__()
         self.layer1 = nn.Sequential(
-            nn.ConvTranspose2d(256, 128, 3, 2, 1, 1),  # batch x 128 x 14 x 14
+            nn.ConvTranspose2d(256, 128, 3, 2, 1, 1),  # batch x 128 x 20 x 10
             nn.ReLU(),
             nn.BatchNorm2d(128),
-            nn.ConvTranspose2d(128, 128, 3, 1, 1),   # batch x 128 x 14 x 14
+            nn.ConvTranspose2d(128, 128, 3, 1, 1),   # batch x 128 x 20 x 10
             nn.ReLU(),
             nn.BatchNorm2d(128),
-            nn.ConvTranspose2d(128, 64, 3, 1, 1),    # batch x 64 x 14 x 14
+            nn.ConvTranspose2d(128, 64, 3, 1, 1),    # batch x 64 x 20 x 10
             nn.ReLU(),
             nn.BatchNorm2d(64),
-            nn.ConvTranspose2d(64, 64, 3, 1, 1),     # batch x 64 x 14 x 14
+            nn.ConvTranspose2d(64, 64, 3, 1, 1),     # batch x 64 x 20 x 10
             nn.ReLU(),
             nn.BatchNorm2d(64)
         )
         self.layer2 = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, 3, 1, 1),     # batch x 32 x 14 x 14
+            nn.ConvTranspose2d(64, 32, 3, 1, 1),     # batch x 32 x 20 x 10
             nn.ReLU(),
             nn.BatchNorm2d(32),
-            nn.ConvTranspose2d(32, 32, 3, 1, 1),     # batch x 32 x 14 x 14
+            nn.ConvTranspose2d(32, 32, 3, 1, 1),     # batch x 32 x 20 x 10
             nn.ReLU(),
             nn.BatchNorm2d(32),
-            nn.ConvTranspose2d(32, 1, 6, 5, 1, 1),    # batch x 1 x 28 x 28
+            nn.ConvTranspose2d(32, 1, 6, 5, 1, 1),    # batch x 1 x 100 x 50
             nn.ReLU()
         )
 
     def forward(self, x):
         global debug
         if debug:
-            print(x.size())
+            print(x.size())  # [50, 12800]
         out = x.view(batch_size, 256, 10, 5)
         if debug:
-            print(out.size())
+            print(out.size())  # [50, 256, 10, 5]
         out = self.layer1(out)
         if debug:
-            print(out.size())
+            print(out.size())  # [50, 64, 20, 10]
         out = self.layer2(out)
         if debug:
-            print(out.size())
+            print(out.size())  # [50, 1, 100, 50]
         return out
 
 
 class AutoEncoder(nn.Module):
+    """
+    encoder:
+        torch.Size([50, 1, 100, 50])
+        torch.Size([50, 64, 20, 10])
+        torch.Size([50, 256, 10, 5])
+        torch.Size([50, 12800])
+    decoder:
+        torch.Size([50, 12800])
+        torch.Size([50, 256, 10, 5])
+        torch.Size([50, 64, 20, 10])
+        torch.Size([50, 1, 100, 50])
+    """
+
     def __init__(self):
         super(AutoEncoder, self).__init__()
         self.encoder = Encoder()
@@ -230,7 +247,7 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
                 # =====================log=======================
                 prog.update(i + 1, [("loss", loss.item()), ("MSE_loss", MSE_loss.data), ("PCC", PCC), ("p-value", p_value)])
                 global debug
-                debug=False # 只打印一次
+                debug = False  # 只打印一次
 
         torch.save(model.state_dict(), save_model_filename)
 
@@ -253,7 +270,7 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
 
         filepath = "./data/"+prefix+"_predict_PCC_{:.4f}_MSE_{:.8f}_".format(pcc, mse)+simulated_csv_data_path[7:]
         predict_df.to_csv(filepath, index=0)
-        break  # 只有一个 batch, 一次全拿出来了，不会有第二个
+        break  # 只有一个 batch, batch_size=2000，一次全拿出来了，不会有第二个
 
 
 predict(
