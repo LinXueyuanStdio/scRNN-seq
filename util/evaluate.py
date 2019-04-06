@@ -17,7 +17,7 @@ def get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_pat
         minmax = np.max(a.iloc[:, i])
         data = minmax_0_to_1(output_data[i][0], reverse=True, minmax=minmax)  # 把结果反归一化成norm状态（需要用到norm的最大值）
         a.iloc[:, i] = data  # 用结果覆盖原来的
-    b = pd.read_csv(true_csv_data_path).iloc[:, 1:]
+    b = normalization(pd.read_csv(true_csv_data_path).iloc[:, 1:])
 
     # a,b 都是已norm状态
     return a, b
