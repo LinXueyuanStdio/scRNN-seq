@@ -117,7 +117,6 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
         noisy_data = minmax_0_to_1(noisy_data, False, torch.max(noisy_data))
         # ===================forward=====================
         output = model(noisy_data)
-        loss = criterion(output, noisy_data)
         mse = MSE_loss(output, noisy_data).data
         output_data = output.data.numpy()
 
