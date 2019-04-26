@@ -12,120 +12,26 @@ from Progbar import Progbar
 import pandas as pd
 import numpy as np
 
+from model import LinearAutoEncoder
+from util import LinearPackDataset
+from util import norm, minmax_0_to_1
+from util import get_predict_and_true, calculate_pcc
+
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
-
-
-def to_img(x):
-    x = x.view(x.size(0), 1, 100, 50)
-    return x
-
-
-def norm(x, reverse=False):
-    if reverse:
-        y = np.power(10, x) - 1.01
-        y = np.around(y).astype(np.int32)
-        return y
-    else:
-        return np.log10(x + 1.01)
-
-
-def minmax_0_to_1(x, reverse=False, minmax=1):
-    if reverse:
-        # x -> [0, 1]
-        return x * minmax
-        # minmax_x -> [0, 6]
-    else:
-        # norm_x -> [0, 6]
-        return x / minmax
-        # minmax_x -> [0, 1]
-
-
-def reset_raw_from_norm(norm_x):
-    return norm(
-        minmax_0_to_1(
-            minmax_0_to_1(norm_x, minmax=np.max(norm_x)), True, np.max(norm_x)), True)
-
-
-def get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_path):
-    a = pd.read_csv(simulated_csv_data_path)
-    for i in range(2000):
-        minmax = np.max(norm(a.iloc[:, i+1]))
-        data = minmax_0_to_1(output_data[i][0], reverse=True, minmax=minmax)
-        a.iloc[:, i+1] = norm(data, reverse=True)
-    b = pd.read_csv(true_csv_data_path)
-    return a, b
-
-
-def calculate_pcc(arr1, arr2):
-    PCC, _ = pearsonr(
-        np.asarray(arr1).reshape(2000*5000),
-        np.asarray(arr2).reshape(2000*5000))
-    return PCC
-
 
 num_epochs = 10
 batch_size = 50
 learning_rate = 1e-3
-prefix = "BCE_norm"
-
-
-class SimulatedDataset(Dataset):
-    '''
-    每一个 Item 是 (1, 5000) 的向量
-    transform 默认为归一化
-    '''
-
-    def __init__(self, simulated_csv_data_path, true_csv_data_path, transform=norm):
-        self.simulated_csv_data = pd.read_csv(simulated_csv_data_path)
-        self.true_csv_data_path = pd.read_csv(true_csv_data_path)
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.simulated_csv_data.columns) - 1
-
-    def __getitem__(self, index):
-        a_column_of_simulated_data = self.simulated_csv_data.iloc[:, index+1]
-        a_column_of_true_data = self.true_csv_data_path.iloc[:, index+1]
-        a_column_of_simulated_data = np.asarray(a_column_of_simulated_data).reshape(1, -1)  # (1, 5000)
-        a_column_of_true_data = np.asarray(a_column_of_true_data).reshape(1, -1)
-
-        if self.transform is not None:
-            a_column_of_simulated_data = self.transform(a_column_of_simulated_data)
-            a_column_of_true_data = self.transform(a_column_of_true_data)
-        simulated_true_pack = (a_column_of_simulated_data, a_column_of_true_data)
-        return simulated_true_pack
-
-
-class AutoEncoder(nn.Module):
-    def __init__(self):
-        super(AutoEncoder, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(5000, 2048),
-            nn.ReLU(True),
-            nn.Linear(2048, 1024),
-            nn.ReLU(True),
-            nn.Linear(128, 64),
-            nn.ReLU(True))
-        self.decoder = nn.Sequential(
-            # nn.Linear(64, 128),
-            # nn.ReLU(True),
-            nn.Linear(128, 512),
-            nn.ReLU(True),
-            nn.Linear(512, 5000),
-            nn.Sigmoid())
-
-    def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
-        return x
+prefix = "LinearAutoEncoder"
 
 
 def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.05.csv",
             true_csv_data_path="./data/true_counts_simulated_dataset1_dropout0.05.csv",
             save_model_filename="./model_dropout0.05.pth", num_epochs=10):
-    dataset = SimulatedDataset(simulated_csv_data_path, true_csv_data_path)
+    dataset = LinearPackDataset(simulated_csv_data_path, true_csv_data_path, norm)
     dataloader = DataLoader(dataset, batch_size=50, shuffle=True, num_workers=3)
-    model = AutoEncoder().to(device)
+    model = LinearAutoEncoder().to(device)
     MSE_loss = nn.MSELoss()
     BCE_Loss = nn.BCELoss()
     criterion = MSE_loss
