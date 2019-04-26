@@ -103,5 +103,9 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+.mlp_img/
+.filters/
 .paper/
 .data/
+*.pth
+*.png
