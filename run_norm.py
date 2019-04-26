@@ -100,15 +100,15 @@ class AutoEncoder(nn.Module):
     def __init__(self):
         super(AutoEncoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(5000, 512),
+            nn.Linear(5000, 2048),
             nn.ReLU(True),
-            nn.Linear(512, 128),
+            nn.Linear(2048, 1024),
             nn.ReLU(True),
             nn.Linear(128, 64),
             nn.ReLU(True))
         self.decoder = nn.Sequential(
-            nn.Linear(64, 128),
-            nn.ReLU(True),
+            # nn.Linear(64, 128),
+            # nn.ReLU(True),
             nn.Linear(128, 512),
             nn.ReLU(True),
             nn.Linear(512, 5000),
@@ -138,17 +138,15 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
             print('epoch [{}/{}]'.format(epoch + 1, num_epochs))
             prog = Progbar(len(dataloader))
             for i, data in enumerate(dataloader):
-                (noisy_data, true_data) = data
+                (noisy_data, _) = data
                 noisy_data = minmax_0_to_1(noisy_data, False, torch.max(noisy_data))
-                true_data = minmax_0_to_1(true_data, False, torch.max(true_data))
                 noisy_data = Variable(noisy_data).float().to(device)
-                true_data = Variable(true_data).float().to(device)
                 # ===================forward=====================
                 output = model(noisy_data)
-                loss = criterion(output, true_data)
-                mse = MSE_loss(output, true_data).data
+                loss = criterion(output, noisy_data)
+                mse = MSE_loss(output, noisy_data).data
                 np1 = output.cpu().detach().numpy().reshape(-1)
-                np2 = true_data.cpu().detach().numpy().reshape(-1)
+                np2 = noisy_data.cpu().detach().numpy().reshape(-1)
                 PCC, p_value = pearsonr(np1, np2)
                 # ===================backward====================
                 optimizer.zero_grad()
@@ -161,15 +159,13 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
     model.eval()
     dataloader2 = DataLoader(dataset, batch_size=2000, shuffle=True, num_workers=3)
     for data in dataloader2:
-        (noisy_data, true_data) = data
+        (noisy_data, _) = data
         noisy_data = Variable(noisy_data).float().to(device)
-        true_data = Variable(true_data).float().to(device)
         noisy_data = minmax_0_to_1(noisy_data, False, torch.max(noisy_data))
-        true_data = minmax_0_to_1(true_data, False, torch.max(true_data))
         # ===================forward=====================
         output = model(noisy_data)
-        loss = criterion(output, true_data)
-        mse = MSE_loss(output, true_data).data
+        loss = criterion(output, noisy_data)
+        mse = MSE_loss(output, noisy_data).data
         output_data = output.data.numpy()
 
         predict_df, true_df = get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_path)

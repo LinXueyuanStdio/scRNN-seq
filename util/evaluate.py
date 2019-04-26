@@ -6,8 +6,8 @@ import numpy as np
 
 def calculate_pcc(arr1, arr2):
     PCC, _ = pearsonr(
-        np.asarray(arr1).reshape(2000*5000),
-        np.asarray(arr2).reshape(2000*5000))
+        np.asarray(arr1).reshape(-1),
+        np.asarray(arr2).reshape(-1))
     return PCC
 
 

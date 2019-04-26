@@ -230,15 +230,14 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
             print('epoch [{}/{}]'.format(epoch + 1, num_epochs))
             prog = Progbar(len(dataloader))
             for i, data in enumerate(dataloader):
-                (noisy_data, true_data) = data
+                (noisy_data, _) = data # 下面只用到 noisy_data 来训练
                 noisy_data = Variable(noisy_data).float().to(device)
-                true_data = Variable(true_data).float().to(device)
                 # ===================forward=====================
                 output = model(noisy_data)
-                loss = criterion(output, true_data)
-                MSE_loss = nn.MSELoss()(output, true_data)
+                loss = criterion(output, noisy_data)
+                MSE_loss = nn.MSELoss()(output, noisy_data)
                 np1 = output.cpu().detach().numpy().reshape(-1)
-                np2 = true_data.cpu().detach().numpy().reshape(-1)
+                np2 = noisy_data.cpu().detach().numpy().reshape(-1)
                 PCC, p_value = pearsonr(np1, np2)
                 # ===================backward====================
                 optimizer.zero_grad()
@@ -254,13 +253,12 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
     model.eval()
     dataloader2 = DataLoader(dataset, batch_size=2000, shuffle=True, num_workers=3)
     for data in dataloader2:
-        (noisy_data, true_data) = data
+        (noisy_data, _) = data
         noisy_data = Variable(noisy_data).float().to(device)
-        true_data = Variable(true_data).float().to(device)
         # ===================forward=====================
         output = model(noisy_data)
-        loss = criterion(output, true_data)
-        mse = MSE_loss(output, true_data).data
+        loss = criterion(output, noisy_data)
+        mse = MSE_loss(output, noisy_data).data
         output_data = output.data.numpy()
 
         predict_df, true_df = get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_path)
