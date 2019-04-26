@@ -11,8 +11,8 @@ from Progbar import Progbar
 
 import pandas as pd
 import numpy as np
-from util.data_process import to_img, norm, minmax_0_to_1, normalization
-from util.evaluate import get_predict_and_true, calculate_pcc
+from util import to_img, norm, minmax_0_to_1, normalization
+from util import get_predict_and_true, calculate_pcc
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
