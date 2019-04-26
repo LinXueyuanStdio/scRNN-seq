@@ -12,37 +12,10 @@ from Progbar import Progbar
 import pandas as pd
 import numpy as np
 
+from util import norm, minmax_0_to_1
+from util import get_predict_and_true, calculate_pcc
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
-
-
-def to_img(x):
-    x = x.view(x.size(0), 1, 100, 50)
-    return x
-
-
-def norm(x, reverse=False):
-    if reverse:
-        y = np.power(10, x) - 1.01
-        y = np.around(y).astype(np.int32)
-        return y
-    else:
-        return np.log10(x + 1.01)
-
-
-def get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_path):
-    a = pd.read_csv(simulated_csv_data_path).iloc[:, 1:]
-    b = pd.read_csv(true_csv_data_path).iloc[:, 1:]
-    for i in range(2000):
-        y = output_data[i][0] * (np.max(a.iloc[:, i])) # 根据最大值来反归一化
-        a.iloc[:, i] = np.around(y).astype(np.int32) # 四舍五入后取整
-    return a, b
-
-
-def calculate_pcc(arr1, arr2):
-    PCC, _ = pearsonr(
-        np.asarray(arr1).reshape(2000*5000),
-        np.asarray(arr2).reshape(2000*5000))
-    return PCC
 
 
 num_epochs = 10
@@ -71,7 +44,7 @@ class SimulatedDataset(Dataset):
         a_column_of_simulated_data = np.asarray(a_column_of_simulated_data).reshape(1, 100, 50)
         a_column_of_true_data = np.asarray(a_column_of_true_data).reshape(1, 100, 50)
 
-        a_column_of_simulated_data = a_column_of_simulated_data / np.max(a_column_of_simulated_data) # 根据最大值来归一化
+        a_column_of_simulated_data = a_column_of_simulated_data / np.max(a_column_of_simulated_data)  # 根据最大值来归一化
         a_column_of_true_data = a_column_of_true_data / np.max(a_column_of_true_data)
 
 #         if self.transform is not None:
@@ -230,7 +203,7 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
             print('epoch [{}/{}]'.format(epoch + 1, num_epochs))
             prog = Progbar(len(dataloader))
             for i, data in enumerate(dataloader):
-                (noisy_data, _) = data # 下面只用到 noisy_data 来训练
+                (noisy_data, _) = data  # 下面只用到 noisy_data 来训练
                 noisy_data = Variable(noisy_data).float().to(device)
                 # ===================forward=====================
                 output = model(noisy_data)
