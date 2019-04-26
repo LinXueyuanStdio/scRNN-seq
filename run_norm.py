@@ -29,7 +29,7 @@ prefix = "LinearAutoEncoder"
 def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.05.csv",
             true_csv_data_path="./data/true_counts_simulated_dataset1_dropout0.05.csv",
             save_model_filename="./model_dropout0.05.pth", num_epochs=10):
-    dataset = LinearPackDataset(simulated_csv_data_path, true_csv_data_path, norm)
+    dataset = LinearPackDataset(simulated_csv_data_path, true_csv_data_path)
     dataloader = DataLoader(dataset, batch_size=50, shuffle=True, num_workers=3)
     model = LinearAutoEncoder().to(device)
     MSE_loss = nn.MSELoss()
