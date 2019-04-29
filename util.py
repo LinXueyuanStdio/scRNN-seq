@@ -1,9 +1,11 @@
 from torch.utils.data import Dataset
+from torch.autograd import Variable
 from scipy.stats.stats import pearsonr
 import scanpy.api as sc
 import pandas as pd
 import numpy as np
-
+import os
+import torch
 
 def to_img(x):
     x = x.view(x.size(0), 1, 100, 50)
@@ -83,3 +85,69 @@ def get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_pat
 
     # a,b 都是已norm状态
     return a, b
+
+
+def calculate_pcc_mse(output, noisy_data, MSE_loss):
+    mse = MSE_loss(output, noisy_data).data
+    np1 = output.cpu().detach().numpy().reshape(-1)
+    np2 = noisy_data.cpu().detach().numpy().reshape(-1)
+    PCC, _ = pearsonr(np1, np2)
+
+    return PCC, mse
+
+
+def minmax_noisy_data(noisy_data, device):
+    noisy_data = Variable(noisy_data).float().to(device)
+    noisy_data = minmax_0_to_1(noisy_data, False, torch.max(noisy_data))
+    return noisy_data
+
+
+class OutputManager:
+    def __init__(self,
+                 simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.05.csv",
+                 true_csv_data_path="./data/true_counts_simulated_dataset1_dropout0.05.csv",
+                 model_filename="model_dropout0.05.pth",
+                 output_path="./output",
+                 model_name="LinearAutoEncoder",
+                 dropout="0.05"):
+        """
+        simulated_csv_data_path
+        true_csv_data_path
+        output_path 输出目录
+        model_filename 模型文件名
+        model_name 模型名字
+        dropout 当前处理的dropout
+        """
+        self.simulated_csv_data_path = simulated_csv_data_path
+        self.true_csv_data_path = true_csv_data_path
+        self.output_path = output_path
+        self.model_filename = model_filename
+        self.model_name = model_name
+        self.dropout = dropout
+
+        self.model_all_save_to = output_path + "/" + model_name + "/"
+        if not os.path.exists(self.model_all_save_to):
+            os.mkdir(self.model_all_save_to)
+
+    def predict_file_path(self, PCC, MSE, prefix="predict"):
+        filename = prefix + "_PCC_{:.4f}_MSE_{:.8f}_".format(PCC, MSE) + self.simulated_csv_data_path[7:]
+        return self.model_all_save_to + filename
+
+    def model_file_path(self):
+        return self.model_all_save_to + self.model_filename
+
+
+def save_output_data(output, noisy_data, MSE_loss, output_manager):
+    # 1. get MSE
+    mse = MSE_loss(output, noisy_data).data
+
+    # 2. get PCC
+    predict_df, true_df = get_predict_and_true(output.data.numpy(),
+                                               output_manager.simulated_csv_data_path,
+                                               output_manager.true_csv_data_path)
+    pcc = calculate_pcc(predict_df.iloc[:, 1:], true_df.iloc[:, 1:])
+
+    # 3. save as '.csv'
+    predict_file_path = output_manager.predict_file_path(pcc, mse)
+    predict_df.to_csv(predict_file_path, index=0)
+    print("save prediction to " + predict_file_path)

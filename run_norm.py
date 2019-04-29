@@ -12,10 +12,10 @@ from Progbar import Progbar
 import pandas as pd
 import numpy as np
 
-from model import LinearAutoEncoder
-from util import LinearPackDataset
-from util import norm, minmax_0_to_1
-from util import get_predict_and_true, calculate_pcc
+from model import LinearAutoEncoder  # 模型
+from util import LinearPackDataset, norm, minmax_0_to_1  # 数据
+from util import calculate_pcc_mse, minmax_noisy_data  # 计算
+from util import OutputManager, save_output_data  # 保存文件
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
@@ -23,21 +23,22 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 num_epochs = 10
 batch_size = 50
 learning_rate = 1e-3
-prefix = "LinearAutoEncoder"
+output_path = "./output",
+model_name = "LinearAutoEncoder",
 
 
-def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.05.csv",
-            true_csv_data_path="./data/true_counts_simulated_dataset1_dropout0.05.csv",
-            save_model_filename="./model_dropout0.05.pth", num_epochs=10):
-    dataset = LinearPackDataset(simulated_csv_data_path, true_csv_data_path)
+def predict(output_manager, device, num_epochs=10):
+    dataset = LinearPackDataset(output_manager.simulated_csv_data_path, output_manager.true_csv_data_path)
     dataloader = DataLoader(dataset, batch_size=50, shuffle=True, num_workers=3)
     model = LinearAutoEncoder().to(device)
     MSE_loss = nn.MSELoss()
     BCE_Loss = nn.BCELoss()
     criterion = MSE_loss
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
-    if os.path.exists(save_model_filename):
-        model.load_state_dict(torch.load(save_model_filename, "cpu"))
+
+    # 训练
+    if os.path.exists(output_manager.model_file_path()):
+        model.load_state_dict(torch.load(output_manager.model_file_path(), "cpu"))
     else:
         model.train()
         for epoch in range(num_epochs):
@@ -45,67 +46,71 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
             prog = Progbar(len(dataloader))
             for i, data in enumerate(dataloader):
                 (noisy_data, _) = data
-                noisy_data = minmax_0_to_1(noisy_data, False, torch.max(noisy_data))
-                noisy_data = Variable(noisy_data).float().to(device)
+                noisy_data = minmax_noisy_data(noisy_data, device)
                 # ===================forward=====================
                 output = model(noisy_data)
                 loss = criterion(output, noisy_data)
-                mse = MSE_loss(output, noisy_data).data
-                np1 = output.cpu().detach().numpy().reshape(-1)
-                np2 = noisy_data.cpu().detach().numpy().reshape(-1)
-                PCC, p_value = pearsonr(np1, np2)
+                pcc, mse = calculate_pcc_mse(output, noisy_data, MSE_loss)
                 # ===================backward====================
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
                 # =====================log=======================
-                prog.update(i + 1, [("loss", loss.item()), ("MSE_loss", mse), ("PCC", PCC), ("p-value", p_value)])
-        torch.save(model.state_dict(), save_model_filename)
+                prog.update(i + 1, [("loss", loss.item()), ("MSE_loss", mse), ("PCC", pcc)])
+        torch.save(model.state_dict(), output_manager.model_file_path())
 
+    # 预测、评价
     model.eval()
     dataloader2 = DataLoader(dataset, batch_size=2000, shuffle=True, num_workers=3)
     for data in dataloader2:
         (noisy_data, _) = data
-        noisy_data = Variable(noisy_data).float().to(device)
-        noisy_data = minmax_0_to_1(noisy_data, False, torch.max(noisy_data))
+        noisy_data = minmax_noisy_data(noisy_data, device)
         # ===================forward=====================
         output = model(noisy_data)
         loss = criterion(output, noisy_data)
-        mse = MSE_loss(output, noisy_data).data
-        output_data = output.data.numpy()
-
-        predict_df, true_df = get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_path)
-        pcc = calculate_pcc(predict_df.iloc[:, 1:], true_df.iloc[:, 1:])
-
-        print("predict PCC:{:.4f} MSE:{:.8f}".format(pcc, mse))
-
-        filepath = "./data/"+prefix+"_predict_PCC_{:.4f}_MSE_{:.8f}_".format(pcc, mse)+simulated_csv_data_path[7:]
-        predict_df.to_csv(filepath, index=0)
+        # =====================log and save==============
+        save_output_data(output, noisy_data, MSE_loss, output_manager)
         break  # 只有一个 batch, 一次全拿出来了，不会有第二个
 
 
-predict(
+def predict_with_output_manager(simulated_csv_data_path, true_csv_data_path, model_filename, dropout):
+    predict(output_manager=OutputManager(simulated_csv_data_path=simulated_csv_data_path,
+                                         true_csv_data_path=true_csv_data_path,
+                                         model_filename=model_filename,
+                                         output_path=output_path,
+                                         model_name=model_name,
+                                         dropout=dropout),
+            device=device,
+            num_epochs=num_epochs)
+
+
+predict_with_output_manager(
     "./data/counts_simulated_dataset1_dropout0.05.csv",
     "./data/true_counts_simulated_dataset1_dropout0.05.csv",
-    "./"+prefix+"_model_dropout0.05.pth"
+    "model_dropout0.05.pth",
+    "0.05"
 )
-predict(
+predict_with_output_manager(
     "./data/counts_simulated_dataset1_dropout0.10.csv",
     "./data/true_counts_simulated_dataset1_dropout0.10.csv",
-    "./"+prefix+"_model_dropout0.10.pth"
+    "model_dropout0.10.pth",
+    "0.10"
 )
-predict(
+predict_with_output_manager(
     "./data/counts_simulated_dataset1_dropout0.15.csv",
     "./data/true_counts_simulated_dataset1_dropout0.15.csv",
-    "./"+prefix+"_model_dropout0.15.pth"
+    "model_dropout0.15.pth",
+    "0.15"
 )
-predict(
+predict_with_output_manager(
     "./data/counts_simulated_dataset1_dropout0.20.csv",
     "./data/true_counts_simulated_dataset1_dropout0.20.csv",
-    "./"+prefix+"_model_dropout0.20.pth"
+    "model_dropout0.20.pth",
+    "0.20"
 )
-predict(
+predict_with_output_manager(
     "./data/counts_simulated_dataset1_dropout0.25.csv",
     "./data/true_counts_simulated_dataset1_dropout0.25.csv",
-    "./"+prefix+"_model_dropout0.25.pth"
+    "model_dropout0.25.pth",
+    "0.25"
 )
