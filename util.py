@@ -106,16 +106,15 @@ def calculate_pcc(arr1, arr2):
     return PCC
 
 
-def get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_path):
+def get_predict_norm_dataframe(output_data, simulated_csv_data_path):
     a = normalization(pd.read_csv(simulated_csv_data_path).iloc[:, 1:])  # norm
     for i in range(2000):
         minmax = np.max(a.iloc[:, i])
         data = minmax_0_to_1(output_data[i][0], reverse=True, minmax=minmax)  # 把结果反归一化成norm状态（需要用到norm的最大值）
         a.iloc[:, i] = data  # 用结果覆盖原来的
-    b = normalization(pd.read_csv(true_csv_data_path).iloc[:, 1:])
 
-    # a,b 都是已norm状态
-    return a, b
+    # a 是已norm状态
+    return a
 
 
 def calculate_pcc_mse(output, noisy_data, MSE_loss):
@@ -175,9 +174,8 @@ def save_output_data(output, noisy_data, MSE_loss, output_manager):
     mse = MSE_loss(output, noisy_data).data
 
     # 2. get PCC
-    predict_df, true_df = get_predict_and_true(output.data.numpy(),
-                                               output_manager.simulated_csv_data_path,
-                                               output_manager.true_csv_data_path)
+    predict_df = get_predict_norm_dataframe(output.data.numpy(), output_manager.simulated_csv_data_path)
+    true_df = normalization(pd.read_csv(output_manager.true_csv_data_path).iloc[:, 1:])
     pcc = calculate_pcc(predict_df.iloc[:, 1:], true_df.iloc[:, 1:])
 
     # 3. save as '.csv'

@@ -11,47 +11,20 @@ from Progbar import Progbar
 
 import pandas as pd
 import numpy as np
+from util import norm
+from util import calculate_pcc_mse, calculate_pcc
+from util import Conv2d_100x50_Dataset, minmax_noisy_data
+from util import predict_one_by_one, normalization, minmax_0_to_1
+from util import OutputManager, save_output_data  # 保存文件
 
-from util import norm, minmax_0_to_1
-from util import get_predict_and_true, calculate_pcc
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
-
-
 num_epochs = 10
 batch_size = 50
 learning_rate = 1e-3
-prefix = "BCE_conv2d"
+output_path = "./output"
+model_name = "Conv2dAutoEncoder"
 debug = True
-
-
-class SimulatedDataset(Dataset):
-    '''
-    每一个 Item 是 (5000, ) 的向量
-    '''
-
-    def __init__(self, simulated_csv_data_path, true_csv_data_path, transform=None):
-        self.simulated_csv_data = pd.read_csv(simulated_csv_data_path)
-        self.true_csv_data_path = pd.read_csv(true_csv_data_path)
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.simulated_csv_data.columns) - 1
-
-    def __getitem__(self, index):
-        a_column_of_simulated_data = self.simulated_csv_data.iloc[:, index+1]
-        a_column_of_true_data = self.true_csv_data_path.iloc[:, index+1]
-        a_column_of_simulated_data = np.asarray(a_column_of_simulated_data).reshape(1, 100, 50)
-        a_column_of_true_data = np.asarray(a_column_of_true_data).reshape(1, 100, 50)
-
-        a_column_of_simulated_data = a_column_of_simulated_data / np.max(a_column_of_simulated_data)  # 根据最大值来归一化
-        a_column_of_true_data = a_column_of_true_data / np.max(a_column_of_true_data)
-
-        if self.transform is not None:
-            a_column_of_simulated_data = self.transform(a_column_of_simulated_data)
-            a_column_of_true_data = self.transform(a_column_of_true_data)
-        simulated_true_pack = (a_column_of_simulated_data, a_column_of_true_data)
-        return simulated_true_pack
 
 
 class Encoder(nn.Module):
@@ -161,7 +134,7 @@ class Decoder(nn.Module):
         return out
 
 
-class AutoEncoder(nn.Module):
+class Conv2dAutoEncoder(nn.Module):
     """
     encoder:
         torch.Size([50, 1, 100, 50])
@@ -176,7 +149,7 @@ class AutoEncoder(nn.Module):
     """
 
     def __init__(self):
-        super(AutoEncoder, self).__init__()
+        super(Conv2dAutoEncoder, self).__init__()
         self.encoder = Encoder()
         self.decoder = Decoder()
 
@@ -186,17 +159,17 @@ class AutoEncoder(nn.Module):
         return x
 
 
-def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.05.csv",
-            true_csv_data_path="./data/true_counts_simulated_dataset1_dropout0.05.csv",
-            save_model_filename="./model_dropout0.05.pth", num_epochs=20):
-    dataset = SimulatedDataset(simulated_csv_data_path, true_csv_data_path)
+def predict(output_manager, device, num_epochs=10):
+    dataset = Conv2d_100x50_Dataset(output_manager.simulated_csv_data_path, output_manager.true_csv_data_path)
     dataloader = DataLoader(dataset, batch_size=50, shuffle=True, num_workers=3)
-    model = AutoEncoder().to(device)
+    model = Conv2dAutoEncoder().to(device)
     criterion = nn.MSELoss()
+    MSE_loss = criterion
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
-    if os.path.exists(save_model_filename):
-        loaded_model = torch.load(save_model_filename, "cpu")
-        model.load_state_dict(torch.load(save_model_filename, "cpu"))
+
+    # 训练
+    if os.path.exists(output_manager.model_file_path()):
+        model.load_state_dict(torch.load(output_manager.model_file_path(), "cpu"))
     else:
         model.train()
         for epoch in range(num_epochs):
@@ -204,68 +177,60 @@ def predict(simulated_csv_data_path="./data/counts_simulated_dataset1_dropout0.0
             prog = Progbar(len(dataloader))
             for i, data in enumerate(dataloader):
                 (noisy_data, _) = data  # 下面只用到 noisy_data 来训练
-                noisy_data = Variable(noisy_data).float().to(device)
+                noisy_data = minmax_noisy_data(noisy_data, device)
                 # ===================forward=====================
                 output = model(noisy_data)
                 loss = criterion(output, noisy_data)
-                MSE_loss = nn.MSELoss()(output, noisy_data)
-                np1 = output.cpu().detach().numpy().reshape(-1)
-                np2 = noisy_data.cpu().detach().numpy().reshape(-1)
-                PCC, p_value = pearsonr(np1, np2)
+                pcc, mse = calculate_pcc_mse(output, noisy_data, MSE_loss)
                 # ===================backward====================
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
                 # =====================log=======================
-                prog.update(i + 1, [("loss", loss.item()), ("MSE_loss", MSE_loss.data), ("PCC", PCC), ("p-value", p_value)])
+                prog.update(i + 1, [("loss", loss.item()), ("MSE", mse), ("PCC", pcc)])
                 global debug
                 debug = False  # 只打印一次
-
-        torch.save(model.state_dict(), save_model_filename)
+        torch.save(model.state_dict(), output_manager.model_file_path())
 
     model.eval()
-    dataloader2 = DataLoader(dataset, batch_size=2000, shuffle=True, num_workers=3)
-    for data in dataloader2:
+    dataloader2 = DataLoader(dataset, batch_size=50, shuffle=True, num_workers=3)
+    predict_df = normalization(pd.read_csv(output_manager.simulated_csv_data_path).iloc[:, 1:])  # norm
+    for i, data in enumerate(dataloader2):
         (noisy_data, _) = data
-        noisy_data = Variable(noisy_data).float().to(device)
+        noisy_data = minmax_noisy_data(noisy_data, device)
         # ===================forward=====================
         output = model(noisy_data)
         loss = criterion(output, noisy_data)
-        mse = MSE_loss(output, noisy_data).data
+        # =====================log and save==============
         output_data = output.data.numpy()
+        print(output_data)
+        break
+        # 1. get MSE
+        mse = MSE_loss(output, noisy_data).data
 
-        predict_df, true_df = get_predict_and_true(output_data, simulated_csv_data_path, true_csv_data_path)
-        pcc = calculate_pcc(predict_df.iloc[:, 1:], true_df.iloc[:, 1:])
+        # 2. get PCC
+        minmax = np.max(predict_df.iloc[:, i])
+        data = minmax_0_to_1(output_data[0][0], reverse=True, minmax=minmax)  # 把结果反归一化成norm状态（需要用到norm的最大值）
+        predict_df.iloc[:, i] = data  # 用结果覆盖原来的
+    true_df = normalization(pd.read_csv(output_manager.true_csv_data_path).iloc[:, 1:])
+    pcc = calculate_pcc(predict_df.iloc[:, 1:], true_df.iloc[:, 1:])
 
-        print("predict PCC:{:.4f} MSE:{:.8f}".format(pcc, mse))
+    # 3. save as '.csv'
+    predict_file_path = output_manager.predict_file_path(pcc, mse)
+    predict_df.to_csv(predict_file_path, index=0)
+    print("save prediction to " + predict_file_path)
 
-        filepath = "./data/"+prefix+"_predict_PCC_{:.4f}_MSE_{:.8f}_".format(pcc, mse)+simulated_csv_data_path[7:]
-        predict_df.to_csv(filepath, index=0)
-        break  # 只有一个 batch, batch_size=2000，一次全拿出来了，不会有第二个
+
+def predict_with_output_manager(simulated_csv_data_path, true_csv_data_path, model_filename, dropout):
+    output_manager = OutputManager(simulated_csv_data_path=simulated_csv_data_path,
+                                   true_csv_data_path=true_csv_data_path,
+                                   model_filename=model_filename,
+                                   output_path=output_path,
+                                   model_name=model_name,
+                                   dropout=dropout)
+    predict(output_manager=output_manager,
+            device=device,
+            num_epochs=num_epochs)
 
 
-predict(
-    "./data/counts_simulated_dataset1_dropout0.05.csv",
-    "./data/true_counts_simulated_dataset1_dropout0.05.csv",
-    "./"+prefix+"_model_dropout0.05.pth"
-)
-predict(
-    "./data/counts_simulated_dataset1_dropout0.10.csv",
-    "./data/true_counts_simulated_dataset1_dropout0.10.csv",
-    "./"+prefix+"_model_dropout0.10.pth"
-)
-predict(
-    "./data/counts_simulated_dataset1_dropout0.15.csv",
-    "./data/true_counts_simulated_dataset1_dropout0.15.csv",
-    "./"+prefix+"_model_dropout0.15.pth"
-)
-predict(
-    "./data/counts_simulated_dataset1_dropout0.20.csv",
-    "./data/true_counts_simulated_dataset1_dropout0.20.csv",
-    "./"+prefix+"_model_dropout0.20.pth"
-)
-predict(
-    "./data/counts_simulated_dataset1_dropout0.25.csv",
-    "./data/true_counts_simulated_dataset1_dropout0.25.csv",
-    "./"+prefix+"_model_dropout0.25.pth"
-)
+predict_one_by_one(predict_with_output_manager)

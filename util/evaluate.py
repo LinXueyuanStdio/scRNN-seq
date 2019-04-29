@@ -1,4 +1,4 @@
-from util.data_process import normalization, minmax_0_to_1
+from util import normalization, minmax_0_to_1
 from scipy.stats.stats import pearsonr
 import pandas as pd
 import numpy as np
