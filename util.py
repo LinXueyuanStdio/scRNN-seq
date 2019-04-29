@@ -126,6 +126,8 @@ class OutputManager:
         self.dropout = dropout
 
         self.model_all_save_to = output_path + "/" + model_name + "/"
+        if not os.path.exists(output_path):
+            os.mkdir(output_path)
         if not os.path.exists(self.model_all_save_to):
             os.mkdir(self.model_all_save_to)
 
