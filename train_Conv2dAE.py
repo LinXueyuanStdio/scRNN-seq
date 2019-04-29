@@ -195,6 +195,7 @@ def predict(output_manager, device, num_epochs=10):
     model.eval()
     dataloader2 = DataLoader(dataset, batch_size=50, shuffle=True, num_workers=3)
     predict_df = normalization(pd.read_csv(output_manager.simulated_csv_data_path).iloc[:, 1:])  # norm
+    noisy_df = normalization(pd.read_csv(output_manager.simulated_csv_data_path).iloc[:, 1:])
     for i, data in enumerate(dataloader2):
         (noisy_data, _) = data
         noisy_data = minmax_noisy_data(noisy_data, device)
@@ -203,15 +204,13 @@ def predict(output_manager, device, num_epochs=10):
         loss = criterion(output, noisy_data)
         # =====================log and save==============
         output_data = output.data.numpy()
-        print(output_data)
-        break
-        # 1. get MSE
-        mse = MSE_loss(output, noisy_data).data
-
-        # 2. get PCC
-        minmax = np.max(predict_df.iloc[:, i])
-        data = minmax_0_to_1(output_data[0][0], reverse=True, minmax=minmax)  # 把结果反归一化成norm状态（需要用到norm的最大值）
-        predict_df.iloc[:, i] = data  # 用结果覆盖原来的
+        for j in range(50):
+            minmax = np.max(predict_df.iloc[:, i*50+j])
+            data = minmax_0_to_1(output_data[j][0], reverse=True, minmax=minmax)  # 把结果反归一化成norm状态（需要用到norm的最大值）
+            predict_df.iloc[:, i*50+j] = data  # 用结果覆盖原来的
+    # 1. get MSE
+    mse = MSE_loss(predict_df, noisy_df).data
+    # 2. get PCC
     true_df = normalization(pd.read_csv(output_manager.true_csv_data_path).iloc[:, 1:])
     pcc = calculate_pcc(predict_df.iloc[:, 1:], true_df.iloc[:, 1:])
 
