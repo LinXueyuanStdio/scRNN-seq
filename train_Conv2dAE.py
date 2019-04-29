@@ -24,7 +24,7 @@ batch_size = 50
 learning_rate = 1e-3
 output_path = "./output"
 model_name = "Conv2dAutoEncoder"
-debug = True
+debug = False
 
 
 class Encoder(nn.Module):
@@ -203,13 +203,15 @@ def predict(output_manager, device, num_epochs=10):
         output = model(noisy_data)
         loss = criterion(output, noisy_data)
         # =====================log and save==============
-        output_data = output.data.numpy()
+        output_data = output.data.numpy().reshape(50,-1)
         for j in range(50):
             minmax = np.max(predict_df.iloc[:, i*50+j])
-            data = minmax_0_to_1(output_data[j][0], reverse=True, minmax=minmax)  # 把结果反归一化成norm状态（需要用到norm的最大值）
+            data = minmax_0_to_1(output_data[j], reverse=True, minmax=minmax)  # 把结果反归一化成norm状态（需要用到norm的最大值）
             predict_df.iloc[:, i*50+j] = data  # 用结果覆盖原来的
+
+        break
     # 1. get MSE
-    mse = MSE_loss(predict_df, noisy_df).data
+    mse = MSE_loss(torch.Tensor(np.array(predict_df)), torch.Tensor(np.array(noisy_df))).data
     # 2. get PCC
     true_df = normalization(pd.read_csv(output_manager.true_csv_data_path).iloc[:, 1:])
     pcc = calculate_pcc(predict_df.iloc[:, 1:], true_df.iloc[:, 1:])
