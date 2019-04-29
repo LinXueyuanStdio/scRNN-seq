@@ -74,8 +74,8 @@ class Conv2d_100x50_Dataset(Dataset):
     '''
 
     def __init__(self, simulated_csv_data_path, true_csv_data_path, transform=None):
-        self.simulated_csv_data = normalization(pd.read_csv(simulated_csv_data_path))
-        self.true_csv_data_path = normalization(pd.read_csv(true_csv_data_path))
+        self.simulated_csv_data = normalization(pd.read_csv(simulated_csv_data_path).iloc[:, 1:])
+        self.true_csv_data_path = normalization(pd.read_csv(true_csv_data_path).iloc[:, 1:])
         self.transform = transform
 
     def __len__(self):
