@@ -13,20 +13,17 @@ import pandas as pd
 import numpy as np
 from util import norm
 from util import calculate_pcc_mse, calculate_pcc
-from util import Conv2d_100x50_Dataset
+from util import Conv2d_100x50_Dataset, minmax_noisy_data
 from util import predict_one_by_one
 from util import OutputManager, save_output_data  # 保存文件
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
-
-
 num_epochs = 10
 batch_size = 50
 learning_rate = 1e-3
 output_path = "./output"
 model_name = "Conv2dAutoEncoder"
-prefix = "BCE_conv2d"
 debug = True
 
 
@@ -180,7 +177,7 @@ def predict(output_manager, device, num_epochs=10):
             prog = Progbar(len(dataloader))
             for i, data in enumerate(dataloader):
                 (noisy_data, _) = data  # 下面只用到 noisy_data 来训练
-                noisy_data = Variable(noisy_data).float().to(device)
+                noisy_data = minmax_noisy_data(noisy_data, device)
                 # ===================forward=====================
                 output = model(noisy_data)
                 loss = criterion(output, noisy_data)
@@ -199,7 +196,7 @@ def predict(output_manager, device, num_epochs=10):
     dataloader2 = DataLoader(dataset, batch_size=2000, shuffle=True, num_workers=3)
     for data in dataloader2:
         (noisy_data, _) = data
-        noisy_data = Variable(noisy_data).float().to(device)
+        noisy_data = minmax_noisy_data(noisy_data, device)
         # ===================forward=====================
         output = model(noisy_data)
         loss = criterion(output, noisy_data)

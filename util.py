@@ -74,16 +74,17 @@ class Conv2d_100x50_Dataset(Dataset):
     '''
 
     def __init__(self, simulated_csv_data_path, true_csv_data_path, transform=None):
-        self.simulated_csv_data = pd.read_csv(simulated_csv_data_path)
-        self.true_csv_data_path = pd.read_csv(true_csv_data_path)
+        self.simulated_csv_data = normalization(pd.read_csv(simulated_csv_data_path))
+        self.true_csv_data_path = normalization(pd.read_csv(true_csv_data_path))
         self.transform = transform
 
     def __len__(self):
-        return len(self.simulated_csv_data.columns) - 1
+        return len(self.simulated_csv_data.columns)
 
     def __getitem__(self, index):
-        a_column_of_simulated_data = self.simulated_csv_data.iloc[:, index+1]
-        a_column_of_true_data = self.true_csv_data_path.iloc[:, index+1]
+        a_column_of_simulated_data = self.simulated_csv_data.iloc[:, index]
+        a_column_of_true_data = self.true_csv_data_path.iloc[:, index]
+
         a_column_of_simulated_data = np.asarray(a_column_of_simulated_data).reshape(1, 100, 50)
         a_column_of_true_data = np.asarray(a_column_of_true_data).reshape(1, 100, 50)
 
@@ -93,6 +94,7 @@ class Conv2d_100x50_Dataset(Dataset):
         if self.transform is not None:
             a_column_of_simulated_data = self.transform(a_column_of_simulated_data)
             a_column_of_true_data = self.transform(a_column_of_true_data)
+
         simulated_true_pack = (a_column_of_simulated_data, a_column_of_true_data)
         return simulated_true_pack
 

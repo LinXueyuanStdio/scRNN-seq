@@ -19,7 +19,6 @@ from util import calculate_pcc_mse, minmax_noisy_data  # 计算
 from util import predict_one_by_one
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
-
 num_epochs = 10
 batch_size = 50
 learning_rate = 1e-3
@@ -83,5 +82,6 @@ def predict_with_output_manager(simulated_csv_data_path, true_csv_data_path, mod
     predict(output_manager=output_manager,
             device=device,
             num_epochs=num_epochs)
+
 
 predict_one_by_one(predict_with_output_manager)
