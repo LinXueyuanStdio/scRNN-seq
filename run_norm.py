@@ -16,7 +16,7 @@ from model import LinearAutoEncoder  # 模型
 from util import LinearPackDataset, norm, minmax_0_to_1  # 数据
 from util import OutputManager, save_output_data  # 保存文件
 from util import calculate_pcc_mse, minmax_noisy_data  # 计算
-
+from util import predict_one_by_one
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
@@ -56,7 +56,7 @@ def predict(output_manager, device, num_epochs=10):
                 loss.backward()
                 optimizer.step()
                 # =====================log=======================
-                prog.update(i + 1, [("loss", loss.item()), ("MSE_loss", mse), ("PCC", pcc)])
+                prog.update(i + 1, [("loss", loss.item()), ("MSE", mse), ("PCC", pcc)])
         torch.save(model.state_dict(), output_manager.model_file_path())
 
     # 预测、评价
@@ -84,34 +84,4 @@ def predict_with_output_manager(simulated_csv_data_path, true_csv_data_path, mod
             device=device,
             num_epochs=num_epochs)
 
-
-predict_with_output_manager(
-    "./data/counts_simulated_dataset1_dropout0.05.csv",
-    "./data/true_counts_simulated_dataset1_dropout0.05.csv",
-    "model_dropout0.05.pth",
-    "0.05"
-)
-predict_with_output_manager(
-    "./data/counts_simulated_dataset1_dropout0.10.csv",
-    "./data/true_counts_simulated_dataset1_dropout0.10.csv",
-    "model_dropout0.10.pth",
-    "0.10"
-)
-predict_with_output_manager(
-    "./data/counts_simulated_dataset1_dropout0.15.csv",
-    "./data/true_counts_simulated_dataset1_dropout0.15.csv",
-    "model_dropout0.15.pth",
-    "0.15"
-)
-predict_with_output_manager(
-    "./data/counts_simulated_dataset1_dropout0.20.csv",
-    "./data/true_counts_simulated_dataset1_dropout0.20.csv",
-    "model_dropout0.20.pth",
-    "0.20"
-)
-predict_with_output_manager(
-    "./data/counts_simulated_dataset1_dropout0.25.csv",
-    "./data/true_counts_simulated_dataset1_dropout0.25.csv",
-    "model_dropout0.25.pth",
-    "0.25"
-)
+predict_one_by_one(predict_with_output_manager)

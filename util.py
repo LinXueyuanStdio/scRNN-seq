@@ -68,6 +68,35 @@ class LinearPackDataset(Dataset):
         return simulated_true_pack
 
 
+class Conv2d_100x50_Dataset(Dataset):
+    '''
+    每一个 Item 是 (100, 50) 的矩阵
+    '''
+
+    def __init__(self, simulated_csv_data_path, true_csv_data_path, transform=None):
+        self.simulated_csv_data = pd.read_csv(simulated_csv_data_path)
+        self.true_csv_data_path = pd.read_csv(true_csv_data_path)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.simulated_csv_data.columns) - 1
+
+    def __getitem__(self, index):
+        a_column_of_simulated_data = self.simulated_csv_data.iloc[:, index+1]
+        a_column_of_true_data = self.true_csv_data_path.iloc[:, index+1]
+        a_column_of_simulated_data = np.asarray(a_column_of_simulated_data).reshape(1, 100, 50)
+        a_column_of_true_data = np.asarray(a_column_of_true_data).reshape(1, 100, 50)
+
+        a_column_of_simulated_data = a_column_of_simulated_data / np.max(a_column_of_simulated_data) # 根据最大值来归一化
+        a_column_of_true_data = a_column_of_true_data / np.max(a_column_of_true_data)
+
+        if self.transform is not None:
+            a_column_of_simulated_data = self.transform(a_column_of_simulated_data)
+            a_column_of_true_data = self.transform(a_column_of_true_data)
+        simulated_true_pack = (a_column_of_simulated_data, a_column_of_true_data)
+        return simulated_true_pack
+
+
 def calculate_pcc(arr1, arr2):
     PCC, _ = pearsonr(
         np.asarray(arr1).reshape(-1),
@@ -153,3 +182,36 @@ def save_output_data(output, noisy_data, MSE_loss, output_manager):
     predict_file_path = output_manager.predict_file_path(pcc, mse)
     predict_df.to_csv(predict_file_path, index=0)
     print("save prediction to " + predict_file_path)
+
+
+def predict_one_by_one(predict_function):
+    predict_function(
+        "./data/counts_simulated_dataset1_dropout0.05.csv",
+        "./data/true_counts_simulated_dataset1_dropout0.05.csv",
+        "model_dropout0.05.pth",
+        "0.05"
+    )
+    predict_function(
+        "./data/counts_simulated_dataset1_dropout0.10.csv",
+        "./data/true_counts_simulated_dataset1_dropout0.10.csv",
+        "model_dropout0.10.pth",
+        "0.10"
+    )
+    predict_function(
+        "./data/counts_simulated_dataset1_dropout0.15.csv",
+        "./data/true_counts_simulated_dataset1_dropout0.15.csv",
+        "model_dropout0.15.pth",
+        "0.15"
+    )
+    predict_function(
+        "./data/counts_simulated_dataset1_dropout0.20.csv",
+        "./data/true_counts_simulated_dataset1_dropout0.20.csv",
+        "model_dropout0.20.pth",
+        "0.20"
+    )
+    predict_function(
+        "./data/counts_simulated_dataset1_dropout0.25.csv",
+        "./data/true_counts_simulated_dataset1_dropout0.25.csv",
+        "model_dropout0.25.pth",
+        "0.25"
+    )

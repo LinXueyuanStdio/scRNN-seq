@@ -47,9 +47,9 @@ class SimulatedDataset(Dataset):
         a_column_of_simulated_data = a_column_of_simulated_data / np.max(a_column_of_simulated_data)  # 根据最大值来归一化
         a_column_of_true_data = a_column_of_true_data / np.max(a_column_of_true_data)
 
-#         if self.transform is not None:
-#             a_column_of_simulated_data = self.transform(a_column_of_simulated_data)
-#             a_column_of_true_data = self.transform(a_column_of_true_data)
+        if self.transform is not None:
+            a_column_of_simulated_data = self.transform(a_column_of_simulated_data)
+            a_column_of_true_data = self.transform(a_column_of_true_data)
         simulated_true_pack = (a_column_of_simulated_data, a_column_of_true_data)
         return simulated_true_pack
 
