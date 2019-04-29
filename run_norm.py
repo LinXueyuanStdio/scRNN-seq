@@ -14,8 +14,8 @@ import numpy as np
 
 from model import LinearAutoEncoder  # 模型
 from util import LinearPackDataset, norm, minmax_0_to_1  # 数据
-from util import calculate_pcc_mse, minmax_noisy_data  # 计算
 from util import OutputManager, save_output_data  # 保存文件
+from util import calculate_pcc_mse, minmax_noisy_data  # 计算
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
@@ -23,8 +23,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 num_epochs = 10
 batch_size = 50
 learning_rate = 1e-3
-output_path = "./output",
-model_name = "LinearAutoEncoder",
+output_path = "./output"
+model_name = "LinearAutoEncoder"
 
 
 def predict(output_manager, device, num_epochs=10):
@@ -74,12 +74,13 @@ def predict(output_manager, device, num_epochs=10):
 
 
 def predict_with_output_manager(simulated_csv_data_path, true_csv_data_path, model_filename, dropout):
-    predict(output_manager=OutputManager(simulated_csv_data_path=simulated_csv_data_path,
-                                         true_csv_data_path=true_csv_data_path,
-                                         model_filename=model_filename,
-                                         output_path=output_path,
-                                         model_name=model_name,
-                                         dropout=dropout),
+    output_manager = OutputManager(simulated_csv_data_path=simulated_csv_data_path,
+                                   true_csv_data_path=true_csv_data_path,
+                                   model_filename=model_filename,
+                                   output_path=output_path,
+                                   model_name=model_name,
+                                   dropout=dropout)
+    predict(output_manager=output_manager,
             device=device,
             num_epochs=num_epochs)
 
