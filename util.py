@@ -7,6 +7,7 @@ import numpy as np
 import os
 import torch
 
+
 def to_img(x):
     x = x.view(x.size(0), 1, 100, 50)
     return x
@@ -88,7 +89,7 @@ class Conv2d_100x50_Dataset(Dataset):
         a_column_of_simulated_data = np.asarray(a_column_of_simulated_data).reshape(1, 100, 50)
         a_column_of_true_data = np.asarray(a_column_of_true_data).reshape(1, 100, 50)
 
-        a_column_of_simulated_data = a_column_of_simulated_data / np.max(a_column_of_simulated_data) # 根据最大值来归一化
+        a_column_of_simulated_data = a_column_of_simulated_data / np.max(a_column_of_simulated_data)  # 根据最大值来归一化
         a_column_of_true_data = a_column_of_true_data / np.max(a_column_of_true_data)
 
         if self.transform is not None:
@@ -162,7 +163,7 @@ class OutputManager:
             os.mkdir(self.model_all_save_to)
 
     def predict_file_path(self, PCC, MSE, prefix="predict"):
-        filename = prefix + "_PCC_{:.4f}_MSE_{:.8f}_".format(PCC, MSE) + self.simulated_csv_data_path[7:]
+        filename = prefix + "_PCC_{:.4f}_MSE_{:.8f}_".format(PCC, MSE) + self.simulated_csv_data_path[-15:]
         return self.model_all_save_to + filename
 
     def model_file_path(self):

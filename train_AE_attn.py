@@ -12,7 +12,7 @@ from Progbar import Progbar
 import pandas as pd
 import numpy as np
 
-from model import LinearAttnAutoEncoder  # 模型
+from model import LinearSelfAttnAutoEncoder  # 模型
 from util import LinearPackDataset, norm, minmax_0_to_1  # 数据
 from util import OutputManager, save_output_data  # 保存文件
 from util import calculate_pcc_mse, minmax_noisy_data  # 计算
@@ -23,13 +23,13 @@ num_epochs = 10
 batch_size = 50
 learning_rate = 1e-3
 output_path = "./output"
-model_name = "LinearAttnAutoEncoder"
+model_name = "LinearSelfAttnAutoEncoder"
 
 
 def predict(output_manager, device, num_epochs=10):
     dataset = LinearPackDataset(output_manager.simulated_csv_data_path, output_manager.true_csv_data_path)
     dataloader = DataLoader(dataset, batch_size=50, shuffle=True, num_workers=3)
-    model = LinearAttnAutoEncoder().to(device)
+    model = LinearSelfAttnAutoEncoder().to(device)
     MSE_loss = nn.MSELoss()
     BCE_Loss = nn.BCELoss()
     criterion = MSE_loss

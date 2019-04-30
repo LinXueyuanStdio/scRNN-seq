@@ -316,5 +316,31 @@ class LinearAttnAutoEncoder(nn.Module):
     def forward(self, x):
         x = self.encoder(x)
         x = self.decoder(x)
-        x, attn = self.attention(x)
+        x, attn = self.attention(x, x, x)
+        return x
+
+
+class LinearSelfAttnAutoEncoder(nn.Module):
+    def __init__(self):
+        super(LinearAttnAutoEncoder, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(5000, 512),
+            nn.ReLU(True),
+            nn.Linear(512, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 64),
+            nn.ReLU(True))
+        self.decoder = nn.Sequential(
+            nn.Linear(64, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 512),
+            nn.ReLU(True),
+            nn.Linear(512, 5000),
+            nn.Sigmoid())
+        self.attention = SelfAtten(5000)
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        x, attn = self.attention(x, x, x)
         return x
