@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 import numpy as np
 
 
@@ -55,6 +56,7 @@ class MultiHeadAtten(nn.Module):
     """
     Multi head attetnion
 
+    ![](https://raw.githubusercontent.com/LinXueyuanStdio/scRNN-seq/master/art/3.png)
     """
 
     def __init__(self, atten_unit, encode_size, num_heads=8, dropout=0.1):
@@ -106,7 +108,6 @@ class MultiHeadAtten(nn.Module):
         # final linear projection
         output = self.linear_final(context)
 
-        # dropout
         output = self.dropout(output)
 
         # add residual and norm layer
@@ -121,6 +122,8 @@ class ScaledDotProductAtten(nn.Module):
 
     公式：
         $  Attention(Q, K, V) = softmax(\frac{Q K^T}{\sqrt{d_k}})*V $
+
+    ![](https://raw.githubusercontent.com/LinXueyuanStdio/scRNN-seq/master/art/2.png)
     """
 
     def __init__(self, encode_size, atten_dropout=0.1):
@@ -146,16 +149,15 @@ class ScaledDotProductAtten(nn.Module):
         '''
         atten = torch.bmm(query, key.transpose(1, 2)) * self.scale
         if atten_mask:
-            # 给需要mask的地方设置一个负无穷
             atten.masked_fill_(atten_mask, -np.inf)
         atten = self.softmax(atten)
-        # 添加dropout
         atten = self.dropout(atten)
         context = torch.bmm(atten, value)
         return context, atten
 
 
 class ConcatAtten(nn.Module):
+    """Additive Attention"""
 
     def __init__(self, encode_size, atten_dropout=0.0):
         super(ConcatAtten, self).__init__()
@@ -201,6 +203,7 @@ class BilinearAtten(nn.Module):
 
 
 class DotAtten(nn.Module):
+    """Dot Product Attention"""
 
     def __init__(self, encode_size: int, atten_dropout=0.0):
         super(DotAtten, self).__init__()
@@ -225,6 +228,7 @@ class DotAtten(nn.Module):
 
 
 class MinusAtten(nn.Module):
+    """MinusAttention"""
 
     def __init__(self, encode_size, atten_dropout=0.1):
         super(MinusAtten, self).__init__()
@@ -249,14 +253,16 @@ class MinusAtten(nn.Module):
         return context, atten
 
 
-"""
 class SelfAtten(nn.Module):
+    """SelfAttention"""
+
     def __init__(self, model_dim, atten_dropout=0.1):
         super(SelfAtten, self).__init__()
         self.Ws = nn.Linear(2 * model_dim, model_dim, bias=False)
         self.vs = nn.Linear(model_dim, 1, bias=False)
         self.dropout = nn.Dropout(atten_dropout)
         self.softmax = nn.Softmax(dim=2)
+
     def forward(self, hidden, atten_mask=None):
         query = hidden.unsqueeze(1)
         key = hidden.unsqueeze(2)
@@ -268,4 +274,45 @@ class SelfAtten(nn.Module):
         atten = self.dropout(atten)
         context = torch.bmm(atten, value)
         return context, atten
-"""
+
+
+class PositionwiseFeedForward(nn.Module):
+    """ a　two layer feed forward"""
+
+    def __init__(self, model_dim=512, ffn_dim=2048, dropout=0.1):
+        super(PositionwiseFeedForward, self).__init__()
+
+        self.w1 = nn.Conv1d(model_dim, ffn_dim, 1)
+        self.w2 = nn.Conv1d(ffn_dim, model_dim, 1)
+        self.layer_norm = nn.LayerNorm(model_dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        residual = x
+        output = x.transpose(1, 2)
+        output = self.w2(F.relu(self.w1(output)))
+        output = self.dropout(output.transpose(1, 2))
+
+        # add residual and norm layer
+        output = self.layer_norm(residual + output)
+        return output
+
+
+class TransformerEncoder(nn.Module):
+    """ Transformer encoder """
+
+    def __init__(self, encode_size=512, num_heads=8, ffn_dim=2018, dropout=0.1):
+        super(TransformerEncoder, self).__init__()
+
+        self.attention = MultiHeadAtten(ScaledDotProductAtten(
+            encode_size, dropout), encode_size, num_heads, dropout)
+        self.feed_forward = PositionwiseFeedForward(
+            encode_size, ffn_dim, dropout)
+
+    def forward(self, inputs, atten_mask=None):
+
+        # self attention
+        context, atten = self.attention(inputs, inputs, inputs, atten_mask)
+        # feed forward
+        output = self.feed_forward(context)
+        return output, atten
