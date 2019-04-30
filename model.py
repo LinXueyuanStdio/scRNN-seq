@@ -322,7 +322,7 @@ class LinearAttnAutoEncoder(nn.Module):
 
 class LinearSelfAttnAutoEncoder(nn.Module):
     def __init__(self):
-        super(LinearAttnAutoEncoder, self).__init__()
+        super(LinearSelfAttnAutoEncoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.Linear(5000, 512),
             nn.ReLU(True),
