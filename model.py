@@ -86,7 +86,7 @@ class MultiHeadAtten(nn.Module):
         num_heads = self.num_heads
         batch_size = query.size(0)
 
-        # linear projectin
+        # 线性连接层
         query = self.linear_q(query)
         key = self.linear_k(key)
         value = self.linear_v(value)
@@ -102,15 +102,15 @@ class MultiHeadAtten(nn.Module):
         # scaled dot product attention
         context, atten = self.attention(query, key, value, atten_mask)
 
-        # concat heads
+        # 合并
         context = context.view(batch_size, -1, dim_per_head * num_heads)
 
-        # final linear projection
+        # 线性连接层
         output = self.linear_final(context)
 
         output = self.dropout(output)
 
-        # add residual and norm layer
+        # 残差连接 + norm
         output = self.layer_norm(residual + output)
 
         return output, atten
@@ -304,15 +304,11 @@ class TransformerEncoder(nn.Module):
     def __init__(self, encode_size=512, num_heads=8, ffn_dim=2018, dropout=0.1):
         super(TransformerEncoder, self).__init__()
 
-        self.attention = MultiHeadAtten(ScaledDotProductAtten(
-            encode_size, dropout), encode_size, num_heads, dropout)
-        self.feed_forward = PositionwiseFeedForward(
-            encode_size, ffn_dim, dropout)
+        self.attention = MultiHeadAtten(ScaledDotProductAtten(encode_size, dropout),
+                                        encode_size, num_heads, dropout)
+        self.feed_forward = PositionwiseFeedForward(encode_size, ffn_dim, dropout)
 
     def forward(self, inputs, atten_mask=None):
-
-        # self attention
         context, atten = self.attention(inputs, inputs, inputs, atten_mask)
-        # feed forward
         output = self.feed_forward(context)
         return output, atten
