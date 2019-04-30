@@ -28,30 +28,6 @@ class LinearAutoEncoder(nn.Module):
         return x
 
 
-class LinearAttnAutoEncoder(nn.Module):
-    def __init__(self):
-        super(LinearAttnAutoEncoder, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(5000, 512),
-            nn.ReLU(True),
-            nn.Linear(512, 128),
-            nn.ReLU(True),
-            nn.Linear(128, 64),
-            nn.ReLU(True))
-        self.decoder = nn.Sequential(
-            nn.Linear(64, 128),
-            nn.ReLU(True),
-            nn.Linear(128, 512),
-            nn.ReLU(True),
-            nn.Linear(512, 5000),
-            nn.Sigmoid())
-
-    def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
-        return x
-
-
 class MultiHeadAtten(nn.Module):
     """
     Multi head attetnion
@@ -299,7 +275,11 @@ class PositionwiseFeedForward(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    """ Transformer encoder """
+    """
+    Transformer encoder
+
+    ![](https://raw.githubusercontent.com/LinXueyuanStdio/scRNN-seq/master/art/0.png)
+    """
 
     def __init__(self, encode_size=512, num_heads=8, ffn_dim=2018, dropout=0.1):
         super(TransformerEncoder, self).__init__()
@@ -312,3 +292,29 @@ class TransformerEncoder(nn.Module):
         context, atten = self.attention(inputs, inputs, inputs, atten_mask)
         output = self.feed_forward(context)
         return output, atten
+
+
+class LinearAttnAutoEncoder(nn.Module):
+    def __init__(self):
+        super(LinearAttnAutoEncoder, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(5000, 512),
+            nn.ReLU(True),
+            nn.Linear(512, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 64),
+            nn.ReLU(True))
+        self.decoder = nn.Sequential(
+            nn.Linear(64, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 512),
+            nn.ReLU(True),
+            nn.Linear(512, 5000),
+            nn.Sigmoid())
+        self.attention = ScaledDotProductAtten(5000)
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        x, attn = self.attention(x)
+        return x
